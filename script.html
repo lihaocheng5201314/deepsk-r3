@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Groq Chat Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        .chat-container {
+            background-color: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 28px;
+        }
+
+        .messages {
+            height: 500px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            background-color: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            padding: 12px 15px;
+            border-radius: 15px;
+            max-width: 85%;
+            word-wrap: break-word;
+            word-break: break-word;
+        }
+
+        .message.assistant {
+            background-color: #e9ecef;
+            color: #34495e;
+            margin-left: 20px;
+            margin-right: 15%;
+        }
+
+        .message.user {
+            background-color: #3498db;
+            color: white;
+            margin-right: 20px;
+            margin-left: 15%;
+            float: right;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        button {
+            padding: 12px 25px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.2);
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            text-align: center;
+            color: #e74c3c;
+            font-size: 14px;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .loading i {
+            font-size: 24px;
+            color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #3498db;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <h1>Deppsk-r1 聊天界面</h1>
+        <div class="messages" id="messages"></div>
+        <div class="input-container">
+            <input type="text" id="userInput" placeholder="输入你的消息...">
+            <button onclick="sendMessage()">发送</button>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="loading" id="loading">
+            <i class="fa-solid fa-spinner"></i>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = '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';
+        const API_URL = 'https://api.groq.com/openai/v1';
+
+        let isProcessing = false;
+
+        async function sendMessage() {
+            if (isProcessing) return;
+
+            const userInput = document.getElementById('userInput');
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            isProcessing = true;
+            userInput.value = '';
+            document.getElementById('loading').style.display = 'block';
+
+            try {
+                const response = await fetch(`${API_URL}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: "deepseek-r1-distill-llama-70b",
+                        messages: [{
+                            role: "user",
+                            content: message
+                        }],
+                        temperature: 0.6,
+                        max_tokens: 4096,
+                        top_p: 0.95,
+                        stream: false
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    displayMessage(message, 'user');
+                    displayMessage(data.choices[0].message.content, 'assistant');
+                } else {
+                    let errorMessage = data.error || '未知错误';
+                    if (typeof errorMessage === 'object') {
+                        errorMessage = JSON.stringify(errorMessage);
+                    }
+                    displayStatus(`错误：${errorMessage}`);
+                }
+            } catch (error) {
+                let errorMessage = error.message;
+                if (error instanceof Error) {
+                    errorMessage = error.message;
+                } else {
+                    errorMessage = '未知错误';
+                }
+                displayStatus(`错误：${errorMessage}`);
+            } finally {
+                isProcessing = false;
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function displayMessage(content, role) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            messageDiv.textContent = content;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function displayStatus(status) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = status;
+        }
+
+        // 输入框回车发送
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
